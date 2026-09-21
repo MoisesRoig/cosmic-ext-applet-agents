@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.MoisesRoig.cosmic-ext-applet-agents</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+
+  <name>AI Agents</name>
+  <summary>Launch AI coding agents and watch their token usage</summary>
+
+  <description>
+    <p>
+      A panel applet for AI coding agents. Launch an agent in any project
+      directory, see which ones are running, and watch what they are costing
+      you, without leaving the panel.
+    </p>
+    <p>The popup shows:</p>
+    <ul>
+      <li>Estimated spend for today and this week, today's token count, a 14 day bar chart and a rolling five hour gauge.</li>
+      <li>Every agent process you own, with its working directory and uptime.</li>
+      <li>One launch tile per agent CLI found on your PATH, plus a picker for the directory to start it in.</li>
+    </ul>
+    <p>
+      Usage figures are read from the local Claude Code transcripts and priced
+      with an editable table. They estimate what the same traffic would cost on
+      the API; they are not a bill and they know nothing about subscription
+      plans.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">io.github.MoisesRoig.cosmic-ext-applet-agents.desktop</launchable>
+
+  <url type="homepage">https://github.com/MoisesRoig/cosmic-ext-applet-agents</url>
+  <url type="bugtracker">https://github.com/MoisesRoig/cosmic-ext-applet-agents/issues</url>
+  <url type="vcs-browser">https://github.com/MoisesRoig/cosmic-ext-applet-agents</url>
+
+  <developer id="io.github.MoisesRoig">
+    <name>Moisés Roig</name>
+  </developer>
+
+  <content_rating type="oars-1.1"/>
+
+  <categories>
+    <category>Utility</category>
+    <category>Development</category>
+  </categories>
+
+  <keywords>
+    <keyword>applet</keyword>
+    <keyword>agents</keyword>
+    <keyword>tokens</keyword>
+    <keyword>usage</keyword>
+  </keywords>
+
+  <releases>
+    <release version="0.1.0" date="2026-09-21">
+      <description>
+        <p>First release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

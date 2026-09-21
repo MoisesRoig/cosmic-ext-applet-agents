@@ -1,0 +1,23 @@
+[package]
+name = "cosmic-ext-applet-agents"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-only"
+description = "COSMIC panel applet to launch AI coding agents and watch their token usage"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "time", "macros"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dependencies.libcosmic]
+git = "https://github.com/pop-os/libcosmic"
+default-features = false
+features = ["applet", "applet-token", "multi-window", "tokio", "wayland", "winit", "desktop-systemd-scope"]
+
+[profile.release]
+opt-level = 3
+lto = "thin"

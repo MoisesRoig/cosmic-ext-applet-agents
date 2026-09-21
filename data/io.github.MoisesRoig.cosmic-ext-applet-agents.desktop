@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=AI Agents
+Comment=Launch AI coding agents and watch their token usage
+Type=Application
+Exec=cosmic-ext-applet-agents
+Icon=io.github.MoisesRoig.cosmic-ext-applet-agents-symbolic
+Terminal=false
+Categories=COSMIC;
+NoDisplay=true
+X-CosmicApplet=true
+X-CosmicHoverPopup=Auto
+X-OverflowPriority=6
