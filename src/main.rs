@@ -2,6 +2,7 @@
 
 mod agents;
 mod config;
+mod toplevels;
 mod usage;
 mod window;
 

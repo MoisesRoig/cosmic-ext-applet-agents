@@ -14,7 +14,10 @@ and watch what they are costing you.
   of your `daily_budget` and `weekly_budget` when you set them, and of the
   busiest day and week on record when you do not.
 - **Running now**: every agent process owned by you, with its working directory
-  and uptime. Clicking a row opens that directory.
+  and uptime. Clicking a row raises the terminal window that agent is running in.
+  Windows are recognised when the applet launches them, since the COSMIC toplevel
+  protocols carry no process id; rows for agents started elsewhere, and rows whose
+  window has since been closed, fall back to opening the directory.
 - **Launch**: one tile per agent CLI found on your login shell's PATH, plus a
   picker for the directory to start it in. The list of directories is built from
   the projects your agents have been working in.

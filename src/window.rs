@@ -1,5 +1,6 @@
 // Panel button and popup: usage gauges on top, running agents, launcher grid.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -16,6 +17,7 @@ use cosmic::{theme, Element, Task};
 
 use crate::agents::{self, Agent, Running};
 use crate::config::Config;
+use crate::toplevels;
 use crate::usage::{self, Snapshot};
 
 const ID: &str = "io.github.MoisesRoig.cosmic-ext-applet-agents";
@@ -25,6 +27,9 @@ const SPARKLINE_HEIGHT: f32 = 34.0;
 /// Process list refresh; the usage rescan runs every USAGE_EVERY ticks.
 const TICK: Duration = Duration::from_secs(4);
 const USAGE_EVERY: u32 = 8;
+/// How long a freshly launched terminal is given to map its window.
+const WINDOW_POLL: Duration = Duration::from_millis(400);
+const WINDOW_POLLS: u32 = 15;
 
 /// The panel button grows when a running count is shown, so it has to autosize.
 static AUTOSIZE_ID: LazyLock<cosmic::widget::Id> =
@@ -40,6 +45,10 @@ pub struct Window {
     dirs: Vec<PathBuf>,
     dir_labels: Vec<String>,
     selected_dir: usize,
+    /// Window of the terminal this applet opened, per agent and directory. The
+    /// toplevel protocol carries no pid, so the only reliable moment to learn
+    /// which window belongs to an agent is right after launching it.
+    windows: HashMap<(&'static str, PathBuf), String>,
     ticks: u32,
     scanning: bool,
     /// Draw the popup contents in the main window, for designing it outside a panel.
@@ -54,7 +63,8 @@ pub enum Message {
     UsageLoaded(Box<Snapshot>),
     Launch(&'static str),
     SelectDir(usize),
-    OpenDir(PathBuf),
+    Focus(Box<Running>),
+    WindowMapped(&'static str, PathBuf, Option<String>),
     OpenConfig,
     ToggleKeepShell(bool),
 }
@@ -141,6 +151,7 @@ impl cosmic::Application for Window {
             dirs: Vec::new(),
             dir_labels: Vec::new(),
             selected_dir: 0,
+            windows: HashMap::new(),
             ticks: 0,
             scanning: false,
         };
@@ -215,21 +226,51 @@ impl cosmic::Application for Window {
                     return Task::none();
                 };
                 let dir = self.launch_dir();
+                let mut tasks = Vec::new();
                 match agents::launch_command(agent, &dir, &self.config) {
                     Some(cmd) => {
+                        let before = toplevels::ids();
                         tokio::spawn(cosmic::process::spawn(cmd));
+                        let target = dir.clone();
+                        tasks.push(Task::perform(new_window(before), move |found| {
+                            cosmic::action::app(Message::WindowMapped(
+                                agent.id,
+                                target.clone(),
+                                found,
+                            ))
+                        }));
                     }
                     None => tracing::warn!("empty terminal template in config, nothing launched"),
                 }
                 if let Some(popup) = self.popup.take() {
-                    return destroy_popup(popup);
+                    tasks.push(destroy_popup(popup));
                 }
+                return Task::batch(tasks);
             }
             Message::SelectDir(index) => self.selected_dir = index,
-            Message::OpenDir(dir) => {
-                let mut cmd = std::process::Command::new("xdg-open");
-                cmd.arg(dir);
-                tokio::spawn(cosmic::process::spawn(cmd));
+            Message::WindowMapped(agent_id, dir, found) => {
+                if let Some(identifier) = found {
+                    self.windows.insert((agent_id, dir), identifier);
+                }
+            }
+            Message::Focus(proc) => {
+                let key = (proc.agent_id, proc.cwd.clone());
+                // Two Wayland roundtrips against a live compositor, so it stays inline.
+                let raised = match self.windows.get(&key) {
+                    Some(identifier) => toplevels::activate(identifier),
+                    None => false,
+                };
+                if !raised {
+                    // The window was closed, or the agent was started outside the
+                    // applet and was never mapped: open its directory instead.
+                    self.windows.remove(&key);
+                    let mut cmd = std::process::Command::new("xdg-open");
+                    cmd.arg(&proc.cwd);
+                    tokio::spawn(cosmic::process::spawn(cmd));
+                }
+                if let Some(popup) = self.popup.take() {
+                    return destroy_popup(popup);
+                }
             }
             Message::OpenConfig => {
                 let mut cmd = std::process::Command::new("xdg-open");
@@ -616,6 +657,36 @@ fn block_gauge(snapshot: &Snapshot) -> Element<'_, Message> {
     .into()
 }
 
+/// Polls for the window a just-launched terminal opens. Two windows appearing at
+/// once cannot be told apart, so that case is left unmapped rather than guessed.
+async fn new_window(before: Vec<String>) -> Option<String> {
+    for _ in 0..WINDOW_POLLS {
+        tokio::time::sleep(WINDOW_POLL).await;
+        let now = tokio::task::spawn_blocking(toplevels::ids).await.ok()?;
+        match only_new(&before, now) {
+            Fresh::Pending => continue,
+            Fresh::One(found) => return Some(found),
+            Fresh::Ambiguous => return None,
+        }
+    }
+    None
+}
+
+enum Fresh {
+    Pending,
+    One(String),
+    Ambiguous,
+}
+
+fn only_new(before: &[String], now: Vec<String>) -> Fresh {
+    let mut fresh = now.into_iter().filter(|id| !before.contains(id));
+    match (fresh.next(), fresh.next()) {
+        (Some(found), None) => Fresh::One(found),
+        (Some(_), Some(_)) => Fresh::Ambiguous,
+        _ => Fresh::Pending,
+    }
+}
+
 fn running_row(proc: &Running) -> Element<'_, Message> {
     let accent = agents::by_id(proc.agent_id)
         .map(|agent| rgb(agent.accent))
@@ -651,7 +722,7 @@ fn running_row(proc: &Running) -> Element<'_, Message> {
     .padding([4, 8])
     .width(Length::Fill)
     .class(theme::Button::MenuItem)
-    .on_press(Message::OpenDir(proc.cwd.clone()))
+    .on_press(Message::Focus(Box::new(proc.clone())))
     .into()
 }
 
@@ -723,5 +794,21 @@ mod tests {
             assert_eq!(tilde(&PathBuf::from(format!("{home}/code"))), "~/code");
         }
         assert_eq!(tilde(&PathBuf::from("/srv/app")), "/srv/app");
+    }
+
+    #[test]
+    fn a_launch_maps_only_an_unambiguous_window() {
+        let before = vec!["a".to_string(), "b".to_string()];
+        let ids = |list: &[&str]| list.iter().map(|s| s.to_string()).collect();
+
+        assert!(matches!(only_new(&before, ids(&["a", "b"])), Fresh::Pending));
+        assert!(matches!(only_new(&before, ids(&["b"])), Fresh::Pending));
+        assert!(
+            matches!(only_new(&before, ids(&["a", "c", "b"])), Fresh::One(found) if found == "c")
+        );
+        assert!(matches!(
+            only_new(&before, ids(&["a", "c", "d"])),
+            Fresh::Ambiguous
+        ));
     }
 }

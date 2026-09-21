@@ -961,6 +961,7 @@ name = "cosmic-ext-applet-agents"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "cosmic-client-toolkit",
  "libcosmic",
  "serde",
  "serde_json",
