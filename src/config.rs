@@ -39,6 +39,11 @@ pub struct Config {
     pub keep_shell_open: bool,
     /// Directories pinned to the top of the launch target list.
     pub project_dirs: Vec<String>,
+    /// What today's usage is measured against, in dollars. Unset means the busiest
+    /// day in the retained history is used as the reference instead.
+    pub daily_budget: Option<f64>,
+    /// As `daily_budget`, for the current week.
+    pub weekly_budget: Option<f64>,
     pub pricing: BTreeMap<String, [f64; 2]>,
 }
 
@@ -48,6 +53,8 @@ impl Default for Config {
             terminal: default_terminal(),
             keep_shell_open: true,
             project_dirs: Vec::new(),
+            daily_budget: None,
+            weekly_budget: None,
             pricing: default_pricing(),
         }
     }

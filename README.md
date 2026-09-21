@@ -4,12 +4,15 @@ A COSMIC panel applet for AI coding agents, in the spirit of the Omarchy agents
 widget: launch an agent in any project directory, see which ones are running,
 and watch what they are costing you.
 
+![popup](docs/popup.png)
+
 ## What it shows
 
 - **Panel button** with the number of agent processes currently running.
-- **Usage card** with today's and this week's estimated spend, today's token
-  count, a 14 day bar chart and a rolling five hour gauge measured against the
-  busiest five hours in the retained history.
+- **Usage card** with today's and this week's usage as a percentage, today's
+  token count, a 14 day bar chart and a rolling five hour gauge. Percentages are
+  of your `daily_budget` and `weekly_budget` when you set them, and of the
+  busiest day and week on record when you do not.
 - **Running now**: every agent process owned by you, with its working directory
   and uptime. Clicking a row opens that directory.
 - **Launch**: one tile per agent CLI found on your login shell's PATH, plus a
@@ -37,6 +40,7 @@ run.
 | `terminal` | Terminal invocation. `%d` is the working directory, `%c` the agent command line, `%s` the login shell. |
 | `keep_shell_open` | Drop into an interactive shell when the agent exits instead of closing the window. |
 | `project_dirs` | Directories pinned to the top of the launch target list. |
+| `daily_budget` / `weekly_budget` | What the percentages are measured against, in dollars. Unset means your own busiest day and week are used instead. |
 | `pricing` | Input and output price per million tokens, keyed by a model id substring. The longest matching key wins, so `sonnet-4-6` overrides `sonnet`. |
 
 ## How the numbers are worked out
@@ -53,8 +57,20 @@ parsed. The running totals live in `~/.cache/cosmic-ext-applet-agents/usage.json
 A first pass over 270 MB of transcripts takes about half a second; later passes
 take about twenty milliseconds.
 
+The popup shows percentages rather than amounts, so a screenshot of your panel
+does not put your spend on display. `--scan` prints the figures in dollars.
+
 Other agents are launched and monitored, but only Claude Code writes usage data
 this applet can read.
+
+## Running as a Flatpak
+
+A Flatpak sandbox has its own PID namespace and none of your binaries, so the
+applet relays two things to the host through `flatpak-spawn --host`: one shell
+call per tick to list agent processes, and the terminal it launches. It needs
+`--talk-name=org.freedesktop.Flatpak` for that and `--filesystem=~/.claude:ro`
+to read the transcripts. Installed from source none of this applies and no
+relay is used.
 
 ## Development
 

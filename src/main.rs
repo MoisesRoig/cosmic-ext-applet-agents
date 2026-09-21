@@ -10,13 +10,38 @@ fn main() -> cosmic::iced::Result {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    // `--scan` prints what the popup would show, without a panel.
+    // `--scan` prints the figures behind the popup, in dollars, without a panel.
     if std::env::args().any(|arg| arg == "--scan") {
         let started = std::time::Instant::now();
         let snapshot = usage::scan(&config::Config::load());
-        println!("{snapshot:#?}\nscanned in {:?}", started.elapsed());
-        println!("running: {:#?}", agents::running());
-        println!("installed: {:?}", agents::installed());
+        let elapsed = started.elapsed();
+
+        for (label, stat) in [
+            ("today", &snapshot.today),
+            ("week ", &snapshot.week),
+            ("month", &snapshot.month),
+        ] {
+            println!(
+                "{label}  {:>8}  {:>8} tokens  {:>5} messages",
+                usage::format_cost(stat.cost),
+                usage::format_tokens(stat.tokens),
+                stat.messages
+            );
+        }
+        println!(
+            "block  {:>8}  peak day {}  peak week {}",
+            usage::format_cost(snapshot.block_cost),
+            usage::format_cost(snapshot.peak_day),
+            usage::format_cost(snapshot.peak_week)
+        );
+        for (model, cost) in &snapshot.by_model {
+            println!("  {model}: {}", usage::format_cost(*cost));
+        }
+        for proc in agents::running() {
+            println!("running  {} in {}", proc.agent_id, proc.cwd.display());
+        }
+        println!("installed {:?}", agents::installed());
+        println!("scanned in {elapsed:?}");
         return Ok(());
     }
 

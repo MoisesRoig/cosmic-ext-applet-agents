@@ -144,6 +144,15 @@ impl cosmic::Application for Window {
             ticks: 0,
             scanning: false,
         };
+        if preview {
+            window.snapshot = usage::demo();
+            window.running = agents::demo_running();
+            window.installed = agents::demo_installed();
+            window.dirs = vec![PathBuf::from("/home/you/code/storefront")];
+            window.dir_labels = vec!["~/code/storefront".into()];
+            return (window, Task::none());
+        }
+
         window.refresh_dirs();
         let task = window.rescan();
         (window, task)
@@ -154,6 +163,9 @@ impl cosmic::Application for Window {
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
+        if self.preview {
+            return Subscription::none();
+        }
         cosmic::iced::time::every(TICK).map(|_| Message::Tick)
     }
 
@@ -281,9 +293,12 @@ impl cosmic::Application for Window {
             ..
         } = theme::active().cosmic().spacing;
 
-        let mut content = column![header(&self.running), usage_card(&self.snapshot)]
-            .spacing(space_xs)
-            .padding([space_xs, space_s]);
+        let mut content = column![
+            header(&self.running),
+            usage_card(&self.snapshot, &self.config)
+        ]
+        .spacing(space_xs)
+        .padding([space_xs, space_s]);
 
         if let Some(error) = &self.snapshot.error {
             content = content.push(text::caption(error.clone()));
@@ -405,12 +420,22 @@ fn pill(label: String, color: Color) -> Element<'static, Message> {
         .into()
 }
 
-fn usage_card(snapshot: &Snapshot) -> Element<'_, Message> {
+fn usage_card<'a>(snapshot: &'a Snapshot, cfg: &Config) -> Element<'a, Message> {
     let spacing = theme::active().cosmic().spacing;
 
     let stats = row![
-        stat_tile("Today", usage::format_cost(snapshot.today.cost)),
-        stat_tile("This week", usage::format_cost(snapshot.week.cost)),
+        share_tile(
+            "Today",
+            snapshot.today.cost,
+            cfg.daily_budget,
+            snapshot.peak_day
+        ),
+        share_tile(
+            "This week",
+            snapshot.week.cost,
+            cfg.weekly_budget,
+            snapshot.peak_week
+        ),
         stat_tile("Tokens today", usage::format_tokens(snapshot.today.tokens)),
     ]
     .spacing(spacing.space_xxs);
@@ -441,6 +466,39 @@ fn usage_card(snapshot: &Snapshot) -> Element<'_, Message> {
         .class(theme::Container::Card)
         .width(Length::Fill)
         .into()
+}
+
+/// A percentage of the configured budget, or of the busiest period on record when
+/// no budget is set. Keeping spend out of the panel also keeps it out of screenshots.
+fn share_tile<'a>(
+    label: &'a str,
+    spent: f64,
+    budget: Option<f64>,
+    peak: f64,
+) -> Element<'a, Message> {
+    let (basis, basis_name) = match budget {
+        Some(budget) if budget > 0.0 => (budget, "of budget"),
+        _ => (peak, "of peak"),
+    };
+    let ratio = if basis > 0.0 {
+        (spent / basis) as f32
+    } else {
+        0.0
+    };
+    container(
+        column![
+            text::title4(format!("{}%", percent(ratio))),
+            text::caption(format!("{label}, {basis_name}")),
+        ]
+        .spacing(2)
+        .align_x(Alignment::Start),
+    )
+    .width(Length::Fill)
+    .into()
+}
+
+fn percent(ratio: f32) -> u32 {
+    (ratio * 100.0).round().clamp(0.0, 999.0) as u32
 }
 
 fn stat_tile(label: &str, value: String) -> Element<'_, Message> {
@@ -550,11 +608,7 @@ fn block_gauge(snapshot: &Snapshot) -> Element<'_, Message> {
     column![
         row![
             text::caption("Last 5 hours").width(Length::Fill),
-            text::caption(format!(
-                "{} of {} peak",
-                usage::format_cost(snapshot.block_cost),
-                usage::format_cost(snapshot.block_record)
-            )),
+            text::caption(format!("{}% of peak", percent(ratio))),
         ],
         track,
     ]

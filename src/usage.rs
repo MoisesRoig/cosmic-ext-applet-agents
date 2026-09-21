@@ -69,6 +69,9 @@ pub struct Snapshot {
     pub block_cost: f64,
     /// Busiest equivalent window in the retained history, used as the gauge ceiling.
     pub block_record: f64,
+    /// Busiest single day and busiest rolling week in the retained history.
+    pub peak_day: f64,
+    pub peak_week: f64,
     /// (day, cost) for the last SPARKLINE_DAYS days, oldest first.
     pub daily: Vec<(NaiveDate, f64)>,
     /// Today's spend per model, highest first.
@@ -363,6 +366,7 @@ fn aggregate(
 
     let mut snapshot = Snapshot::default();
     let mut daily: BTreeMap<NaiveDate, f64> = BTreeMap::new();
+    let mut all_days: BTreeMap<NaiveDate, f64> = BTreeMap::new();
     let mut by_model: BTreeMap<String, f64> = BTreeMap::new();
     let mut hourly_cost: BTreeMap<i64, f64> = BTreeMap::new();
 
@@ -375,6 +379,7 @@ fn aggregate(
         };
         let day = at.with_timezone(&Local).date_naive();
 
+        *all_days.entry(day).or_default() += cost;
         if day >= sparkline_start {
             *daily.entry(day).or_default() += cost;
         }
@@ -401,6 +406,17 @@ fn aggregate(
             .map(|(_, cost)| cost)
             .sum();
         snapshot.block_record = snapshot.block_record.max(window);
+    }
+
+    snapshot.peak_day = all_days.values().copied().fold(0.0, f64::max);
+    // Busiest rolling week, so "this week" has a reference even early in the week.
+    let days: Vec<NaiveDate> = all_days.keys().copied().collect();
+    for end in &days {
+        let window: f64 = all_days
+            .range((*end - Duration::days(6))..=*end)
+            .map(|(_, cost)| cost)
+            .sum();
+        snapshot.peak_week = snapshot.peak_week.max(window);
     }
 
     snapshot.daily = (0..SPARKLINE_DAYS)
@@ -550,5 +566,48 @@ mod tests {
         assert_eq!(buckets.values().next().unwrap().messages, 2);
 
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+}
+
+/// Fixed figures for `--preview`, so the layout can be worked on and screenshotted
+/// without putting real usage on display.
+pub fn demo() -> Snapshot {
+    let today = Local::now().date_naive();
+    let shape = [
+        0.35, 0.62, 0.10, 0.28, 0.05, 0.71, 0.44, 0.83, 0.22, 0.09, 0.31, 0.06, 0.15, 0.48,
+    ];
+    Snapshot {
+        today: Stat {
+            cost: 18.4,
+            tokens: 31_200_000,
+            messages: 148,
+        },
+        week: Stat {
+            cost: 74.9,
+            tokens: 126_400_000,
+            messages: 612,
+        },
+        month: Stat {
+            cost: 291.0,
+            tokens: 498_000_000,
+            messages: 2410,
+        },
+        block_cost: 6.1,
+        block_record: 22.0,
+        peak_day: 30.0,
+        peak_week: 140.0,
+        daily: shape
+            .iter()
+            .enumerate()
+            .map(|(index, weight)| {
+                (
+                    today - Duration::days((shape.len() - 1 - index) as i64),
+                    weight * 30.0,
+                )
+            })
+            .collect(),
+        by_model: vec![("Opus 5".into(), 12.9), ("Sonnet 5".into(), 5.5)],
+        recent_dirs: Vec::new(),
+        error: None,
     }
 }

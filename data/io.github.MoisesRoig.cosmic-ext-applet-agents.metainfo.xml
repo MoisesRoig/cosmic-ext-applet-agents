@@ -15,15 +15,16 @@
     </p>
     <p>The popup shows:</p>
     <ul>
-      <li>Estimated spend for today and this week, today's token count, a 14 day bar chart and a rolling five hour gauge.</li>
+      <li>Today's and this week's usage as a percentage of your budget, today's token count, a 14 day bar chart and a rolling five hour gauge.</li>
       <li>Every agent process you own, with its working directory and uptime.</li>
       <li>One launch tile per agent CLI found on your PATH, plus a picker for the directory to start it in.</li>
     </ul>
     <p>
-      Usage figures are read from the local Claude Code transcripts and priced
-      with an editable table. They estimate what the same traffic would cost on
+      Usage is read from the local Claude Code transcripts and priced with an
+      editable table. The figures estimate what the same traffic would cost on
       the API; they are not a bill and they know nothing about subscription
-      plans.
+      plans. The panel shows percentages rather than amounts, so a screenshot
+      does not put your spend on display.
     </p>
   </description>
 
@@ -50,6 +51,13 @@
     <keyword>tokens</keyword>
     <keyword>usage</keyword>
   </keywords>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/MoisesRoig/cosmic-ext-applet-agents/main/docs/popup.png</image>
+      <caption>Usage summary, running agents and the launcher grid</caption>
+    </screenshot>
+  </screenshots>
 
   <releases>
     <release version="0.1.0" date="2026-09-21">
